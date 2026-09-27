@@ -23,18 +23,18 @@ the coordinator records the evidence. Unassigned tasks have no writer.
 
 ## Release tasks
 
-Current writer: release coordinator (root agent), working on `master` in the
-existing BLE Watch checkout. The test worker has finished and released its file.
-The coordinator is the only remaining writer. Release task claims below are
-sequential; REL-04 cannot edit the article until REL-03 is accepted. Future
-workers must record branch/worktree and UTC claim time when dispatched.
+Release claims are closed. No implementation worker is active. Future workers
+must record their exact files, branch/worktree, and UTC claim time before
+dispatch. The public development branch is `main`. See `RELEASING.md` before
+pushing from a checkout that also contains private historical branches.
 
-- **REL-01: public snapshot and dependency.** Status: active. Owner: release
+- **REL-01: public snapshot and dependency.** Status: done. Owner: release
   coordinator. Files: `go.mod`, `go.sum`, `.gitignore`, `README.md`, `ENDPOINTS.md`,
   `.github/workflows/checks.yml`, package manifests, `playwright.config.ts`,
   `tests/ble-watch.spec.ts`, `docs/TESTING.md`, release script and application
-  cleanup files already staged by the coordinator. No worker may claim these
-  until publication is complete.
+  cleanup files reviewed by the coordinator. Claim released. Evidence: public
+  snapshot `aab49c9`, pinned fork `04039794046d`, clean-snapshot build and race
+  tests passed, privacy check passed, public repositories confirmed.
   Acceptance: sanitized source and commit metadata, reproducible dependency,
   clean-checkout build, public repository link, no private history uploaded.
 - **REL-02: test-agent smoke implementation.** Status: done. Owner: test worker;
@@ -44,9 +44,12 @@ workers must record branch/worktree and UTC claim time when dispatched.
   claimed yet. Acceptance: API and real dashboard
   checks pass, failure artifacts do not capture live identities, recurring
   schedule is registered, and its first run has a recorded result.
-- **REL-03: verification and writing audit.** Status: active. Owner: release
+- **REL-03: verification and writing audit.** Status: done. Owner: release
   coordinator. Files: `docs/VERIFICATION.md`, `docs/BLOG_DRAFT.md`, public prose,
-  privacy check, integration tests. Acceptance: separate privacy and prose
+  privacy check, integration tests. Claim released. Evidence: separate prose
+  review completed and corrected; tracked-content scan has zero findings;
+  synthetic integration and 10 browser tests passed; hardware limits recorded
+  in `VERIFICATION.md` and follow-up HW-01. Acceptance: separate privacy and prose
   findings recorded, build passes, database integration evidence exists, live
   hardware result is reported accurately, no emoji or em dashes in owned text.
 - **REL-04: article and screenshots.** Status: blocked on REL-03, REP-01 and UI-01.

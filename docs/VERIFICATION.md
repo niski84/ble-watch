@@ -4,10 +4,17 @@ Checked on 2026-09-27. This report covers the initial Witchcraft integration,
 publication cleanup, and smoke automation. It does not certify the planned
 device-intelligence pipeline.
 
+Public source: [BLE Watch](https://github.com/niski84/ble-watch), initial
+snapshot `aab49c9`. Dependency:
+[Witchcraft fork](https://github.com/niski84/witchcraft-go-tasks/tree/submission-errors),
+revision `04039794046d`. No pull request was opened.
+
 ## Build and integration
 
 - `go build ./...`: passed locally.
 - `go test -race ./...`: passed locally.
+- Both commands also passed from a separate clean source snapshot using the
+  pinned public dependency.
 - `TestBlueZSignalProducesObservation`: synthetic D-Bus device-added and
   property-change signals produced observations; partial updates preserved
   cached device metadata.
