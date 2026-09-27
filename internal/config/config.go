@@ -9,9 +9,11 @@ import (
 
 // Config holds runtime configuration.
 type Config struct {
-	Port    string
-	DataDir string
-	AppURL  string
+	// DemoMode is set only by the isolated demo command, never the environment.
+	DemoMode bool
+	Port     string
+	DataDir  string
+	AppURL   string
 
 	// Bluetooth adapter (BlueZ) to scan with, e.g. "hci0".
 	Adapter string

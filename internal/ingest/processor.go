@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"sync/atomic"
+	"time"
 
 	"github.com/palantir/witchcraft-go-health/v2/conjure/witchcraft/api/health"
 	"github.com/palantir/witchcraft-go-health/v2/sources/window"
@@ -27,7 +28,7 @@ type Stats struct {
 // Processor submits observations to a single detector worker. Queue storage
 // is not bounded. Detector persistence errors are not returned to the submitter.
 type Processor struct {
-	submitter executor.DelayedItemSubmitter[scanner.Observation]
+	submitter executor.ObservableDelayedItemSubmitter[scanner.Observation]
 	submitted atomic.Uint64
 	rejected  atomic.Uint64
 	processed atomic.Uint64
@@ -52,7 +53,7 @@ func New(ctx context.Context, detector *anomaly.Detector) *Processor {
 		health.CheckType("ble-observation-processing"),
 		window.UnhealthyIfAtLeastOneError,
 	)
-	p.submitter = executor.NewDefaultItemSubmitter(
+	p.submitter = executor.NewObservableItemSubmitter(
 		ctx,
 		workers,
 		healthSource,
@@ -66,6 +67,17 @@ func New(ctx context.Context, detector *anomaly.Detector) *Processor {
 func (p *Processor) Submit(ctx context.Context, obs scanner.Observation) error {
 	err := p.submitter.TrySubmit(ctx, obs)
 	if err != nil {
+		p.rejected.Add(1)
+		return err
+	}
+	p.submitted.Add(1)
+	return nil
+}
+
+// SubmitAfter accepts an observation for later processing. Acceptance is not
+// a durability guarantee; cancellation can discard queued work.
+func (p *Processor) SubmitAfter(ctx context.Context, obs scanner.Observation, delay time.Duration) error {
+	if err := p.submitter.TrySubmitAfter(ctx, obs, delay); err != nil {
 		p.rejected.Add(1)
 		return err
 	}

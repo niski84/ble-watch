@@ -88,12 +88,14 @@ func NewDetector(cfg config.Config, st *store.Store, hub *alert.Hub, sink *alert
 		}
 	}
 
-	if devs, err := st.ListRecognized(); err == nil {
-		for _, dev := range devs {
-			d.known[dev.Mac] = true
-			if dev.Name != "" {
-				d.names[strings.ToLower(dev.Name)] = dev.Mac
-			}
+	devs, err := st.ListRecognized()
+	if err != nil {
+		return nil, err
+	}
+	for _, dev := range devs {
+		d.known[dev.Mac] = true
+		if dev.Name != "" {
+			d.names[strings.ToLower(dev.Name)] = dev.Mac
 		}
 	}
 	return d, nil

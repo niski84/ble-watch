@@ -23,7 +23,7 @@ the coordinator records the evidence. Unassigned tasks have no writer.
 
 ## Release tasks
 
-Release claims are closed. No implementation worker is active. Future workers
+Release claims are closed. HW-01 needs controlled hardware input. Future workers
 must record their exact files, branch/worktree, and UTC claim time before
 dispatch. The public development branch is `main`. See `RELEASING.md` before
 pushing from a checkout that also contains private historical branches.
@@ -52,16 +52,50 @@ pushing from a checkout that also contains private historical branches.
   in `VERIFICATION.md` and follow-up HW-01. Acceptance: separate privacy and prose
   findings recorded, build passes, database integration evidence exists, live
   hardware result is reported accurately, no emoji or em dashes in owned text.
-- **REL-04: article and screenshots.** Status: blocked on REL-03, REP-01 and UI-01.
-  Owner: unassigned. Files: `docs/BLOG_DRAFT.md`, later `docs/images/`.
-  Acceptance: screenshots use synthetic data, every result links to evidence,
-  article reads as a first-person project account without unimplemented claims.
-  Publishing a separate blog is a later release action.
+- **REL-04: standalone article draft.** Status: done. Owner: coordinator.
+  File: `docs/BLOG_DRAFT.md`. Expanded into a first-person article explaining
+  the contribution, compatibility change, tests, hardware limits, and next work.
+  It links PR #142 and remains unpublished on the portfolio.
+- **MEDIA-01: demo screenshots and article publication.** Status: blocked on
+  editorial approval. The isolated DEMO-01 is available for synthetic captures;
+  desktop/mobile images were inspected locally, not committed or published.
+  Owner: unassigned. Files: later `docs/images/` and final
+  article review. Acceptance: synthetic data, reviewed imagery, current PR and
+  hardware status, explicit publication decision. Do not capture live identities.
+- **LIB-01: upstream contribution.** Status: done for submission. Owner:
+  coordinator. PR #142 is open against Palantir's `develop` branch. Optional
+  observable interfaces preserve existing interface and constructor types.
+  Tests pass normally and changed packages pass race tests. Review/CLA gates
+  are pending; merge is not claimed. BLE Watch pins revision `25d350b7a5ec`.
 
 ## Implementation tasks
 
-- **HW-01: establish continuous live reception.** Status: ready. Owner:
-  unassigned. Claim to be assigned after checking receiver status. Acceptance:
+- **DEMO-01: isolated working demonstration.** Status: done. Owner:
+  coordinator. Files: `cmd/ble-demo/`, `internal/demo/`, ingestion delayed
+  submission, API stream and demo wiring, dashboard templates, store regression
+  tests, demo documentation and browser tests. Acceptance: synthetic-only
+  temporary database, loopback listener, no BlueZ or webhook access, observations
+  pass through Witchcraft, persisted anomaly and presence events, live SSE
+  refresh, documented limits. Evidence: full Go race tests, nine scripted
+  observations persisted, four expected events, SSE frame regression test,
+  16 synthetic browser checks. Claim released. This does not complete the
+  REP-01 clock contract or establish live radio reception.
+- **LIVE-02: hardware evidence gate.** Status: done. Owner: Copernicus.
+  Claim: 2026-09-27, isolated worktree from `98d15f1`. Files:
+  `scripts/check-live.py`, `scripts/test_check_live.py`. Acceptance: cached seeds
+  or a receiver restart cannot pass the live-reception check; fixed diagnostics
+  reveal no device identities. Evidence: 14 Python tests, reviewed and integrated
+  as `ca58119`. Live 45-second sample correctly returned blocked/SourceSilence.
+  Claim released.
+
+- **HW-01: establish continuous live reception.** Status: blocked on a controlled
+  owned beacon check. Scanner worker claim released after integration `98d15f1`.
+  Scanner health/lifecycle changes and tests are complete; physical acceptance
+  is not. Original claim time: 2026-09-27T22:16:22Z. Isolated worktree branch:
+  `scanner-health-worker`. Claimed files: `internal/scanner/*.go`,
+  `internal/api/server.go`, `internal/api/scanner_test.go`,
+  `cmd/ble-watch/main.go`. Coordinator owns integration, docs, and deployment.
+  Acceptance:
   controlled owned beacon causes new observations and database writes after
   startup; loss of receiver coverage is distinguishable from quiet devices.
   Evidence so far: five startup observations persisted, but a separate

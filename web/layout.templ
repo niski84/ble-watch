@@ -18,11 +18,13 @@ templ Base(title string, section string, children ...templ.Component) {
 					var t = localStorage.getItem('theme') ||
 						(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 					document.documentElement.setAttribute('data-theme', t);
+					document.documentElement.classList.toggle('dark', t === 'dark');
 					document.documentElement.style.colorScheme = t;
 				})();
 			</script>
 			<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet"/>
 			<script src="https://cdn.tailwindcss.com"></script>
+			<script>tailwind.config = { darkMode: 'class' };</script>
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
 			<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
 			<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -31,6 +33,11 @@ templ Base(title string, section string, children ...templ.Component) {
 					--bw-cyan: #22d3ee;
 					--bw-magenta: #e879f9;
 					--bw-bg: #06090f;
+				}
+				[data-theme="light"] { --bw-bg: #f5f7fa; }
+				@media (prefers-reduced-motion: reduce) {
+					html { scroll-behavior: auto; }
+					.bw-live-dot { animation: none; }
 				}
 				html { scroll-behavior: smooth; }
 				body {
@@ -49,6 +56,12 @@ templ Base(title string, section string, children ...templ.Component) {
 					backdrop-filter: blur(8px);
 				}
 				.bw-glow { box-shadow: 0 0 0 1px color-mix(in srgb,#22d3ee 12%,transparent), 0 8px 40px -12px rgba(34,211,238,.25); }
+				[data-theme="light"] .bw-panel {
+					background: rgba(255,255,255,.94);
+					border-color: #d0dde5;
+				}
+				[data-theme="light"] .text-cyan-400 { color: #0e7490; }
+				[data-theme="light"] .text-fuchsia-400 { color: #a21caf; }
 				.bw-heading {
 					background: linear-gradient(90deg, #22d3ee, #e879f9);
 					-webkit-background-clip: text;
@@ -80,7 +93,7 @@ templ Base(title string, section string, children ...templ.Component) {
 								<span class="font-bold text-lg tracking-tight">ble<span class="bw-heading">watch</span></span>
 								<span class="badge badge-sm badge-outline badge-info gap-1 ml-1">
 									<span class="bw-live-dot h-1.5 w-1.5 rounded-full bg-cyan-400"></span>
-									LIVE
+									Dashboard
 								</span>
 							</a>
 						</div>
@@ -91,6 +104,14 @@ templ Base(title string, section string, children ...templ.Component) {
 						</div>
 					</div>
 					<main class="max-w-7xl mx-auto w-full px-4 md:px-6 py-6">
+						if IsDemo(ctx) {
+							<aside id="demo-banner" class="bw-panel p-4 mb-5" aria-label="Synthetic demo">
+								<strong>Skitchcraft / BLE Watch demo</strong>
+								<p class="text-sm mt-1">Synthetic observations in an isolated database. Bluetooth and webhooks are disabled.</p>
+								<p class="text-sm mt-1">Baseline, delayed signal surge, silence, return. Background tasks use Palantir's Witchcraft Go Tasks.</p>
+								<a class="underline text-sm" href="/events">Inspect recorded events</a>
+							</aside>
+						}
 						{ children... }
 					</main>
 				</div>
@@ -150,6 +171,7 @@ templ Base(title string, section string, children ...templ.Component) {
 						var cur = document.documentElement.getAttribute('data-theme');
 						var next = cur === 'light' ? 'dark' : 'light';
 						document.documentElement.setAttribute('data-theme', next);
+						document.documentElement.classList.toggle('dark', next === 'dark');
 						document.documentElement.style.colorScheme = next;
 						localStorage.setItem('theme', next);
 					});
