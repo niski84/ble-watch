@@ -1,0 +1,57 @@
+package web
+
+// DevicesPage renders the recognized-device management page.
+templ DevicesPage(data DevicesPageData) {
+	@Base("Devices", "devices") {
+		<header class="mb-6 flex items-end justify-between flex-wrap gap-3">
+			<div>
+				<h1 class="text-3xl font-bold tracking-tight">Device <span class="bw-heading">registry</span></h1>
+				<p class="opacity-60 mt-1">Recognize known devices, review unknowns, manage aliases.</p>
+			</div>
+			<div class="flex gap-3">
+				<div class="bw-panel px-4 py-2 text-center">
+					<div class="font-bold text-accent">{ data.RecognizedCount }</div>
+					<div class="text-[10px] uppercase tracking-widest opacity-50">Recognized</div>
+				</div>
+				<div class="bw-panel px-4 py-2 text-center">
+					<div class="font-bold text-warning">{ data.UnknownCount }</div>
+					<div class="text-[10px] uppercase tracking-widest opacity-50">Unknown</div>
+				</div>
+			</div>
+		</header>
+
+		<section class="mb-8">
+			<h2 class="font-semibold mb-3 flex items-center gap-2"><span>*</span> Recognized devices</h2>
+			if recognizedDevices(data.Devices) == 0 {
+				<div class="bw-panel p-8 text-center opacity-60">
+					<p>No recognized devices yet. Seed <code class="mono text-cyan-400">data/known-devices.json</code> or recognize a device below.</p>
+				</div>
+			} else {
+				<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+					for _, d := range data.Devices {
+						if d.Recognized {
+							@ManageCard(d)
+						}
+					}
+				</div>
+			}
+		</section>
+
+		<section>
+			<h2 class="font-semibold mb-3 flex items-center gap-2"><span>?</span> Unknown devices</h2>
+			if unknownDevices(data.Devices) == 0 {
+				<div class="bw-panel p-8 text-center opacity-60">
+					<p>No unknown devices currently tracked.</p>
+				</div>
+			} else {
+				<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+					for _, d := range data.Devices {
+						if !d.Recognized {
+							@ManageCard(d)
+						}
+					}
+				</div>
+			}
+		</section>
+	}
+}

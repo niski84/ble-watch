@@ -1,0 +1,160 @@
+package web
+
+// Base is the shared shell: dark-first theme, navbar, sidebar, CDN libs.
+templ Base(title string, section string, children ...templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<meta name="color-scheme" content="dark light"/>
+			<title>{ title } · ble-watch</title>
+			<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+			<link rel="preconnect" href="https://fonts.googleapis.com"/>
+			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+			<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+			<script>
+				(function () {
+					var t = localStorage.getItem('theme') ||
+						(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+					document.documentElement.setAttribute('data-theme', t);
+					document.documentElement.style.colorScheme = t;
+				})();
+			</script>
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet"/>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+			<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+			<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+			<style>
+				:root {
+					--bw-cyan: #22d3ee;
+					--bw-magenta: #e879f9;
+					--bw-bg: #06090f;
+				}
+				html { scroll-behavior: smooth; }
+				body {
+					font-family: 'Space Grotesk', system-ui, sans-serif;
+					background:
+						radial-gradient(1200px 600px at 85% -10%, rgba(34,211,238,.10), transparent 60%),
+						radial-gradient(1000px 500px at -10% 110%, rgba(232,121,249,.10), transparent 60%),
+						var(--bw-bg);
+					min-height: 100vh;
+				}
+				.mono { font-family: 'JetBrains Mono', monospace; }
+				.bw-panel {
+					background: color-mix(in srgb, var(--fallback-b1,oklch(21% .03 260)) 80%, transparent);
+					border: 1px solid color-mix(in srgb, #22d3ee 14%, transparent);
+					border-radius: 1rem;
+					backdrop-filter: blur(8px);
+				}
+				.bw-glow { box-shadow: 0 0 0 1px color-mix(in srgb,#22d3ee 12%,transparent), 0 8px 40px -12px rgba(34,211,238,.25); }
+				.bw-heading {
+					background: linear-gradient(90deg, #22d3ee, #e879f9);
+					-webkit-background-clip: text;
+					background-clip: text;
+					color: transparent;
+				}
+				.sig-bar { height: 6px; border-radius: 9999px; transition: width .6s ease; }
+				@keyframes bw-pulse {
+					0%,100% { opacity: 1; }
+					50% { opacity: .35; }
+				}
+				.bw-live-dot { animation: bw-pulse 1.8s ease-in-out infinite; }
+				::-webkit-scrollbar { width: 10px; height: 10px; }
+				::-webkit-scrollbar-thumb { background: rgba(34,211,238,.25); border-radius: 8px; }
+				::-webkit-scrollbar-track { background: transparent; }
+			</style>
+		</head>
+		<body>
+			<div class="drawer lg:drawer-open">
+				<input id="bw-drawer" type="checkbox" class="drawer-toggle"/>
+				<div class="drawer-content">
+					<div class="navbar bg-transparent border-b border-cyan-400/10 px-4 py-3 sticky top-0 z-30 backdrop-blur">
+						<div class="navbar-start">
+							<label for="bw-drawer" class="btn btn-ghost btn-circle lg:hidden">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+							</label>
+							<a href="/" class="flex items-center gap-2">
+								<span class="text-2xl">BLE</span>
+								<span class="font-bold text-lg tracking-tight">ble<span class="bw-heading">watch</span></span>
+								<span class="badge badge-sm badge-outline badge-info gap-1 ml-1">
+									<span class="bw-live-dot h-1.5 w-1.5 rounded-full bg-cyan-400"></span>
+									LIVE
+								</span>
+							</a>
+						</div>
+						<div class="navbar-end gap-1">
+							<button id="theme-toggle" class="btn btn-ghost btn-circle" aria-label="Toggle theme" title="Toggle theme">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.36-6.36-1.41 1.41M8.05 15.95l-1.41 1.41m0-10.72 1.41 1.41m7.9 7.9 1.41 1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+							</button>
+						</div>
+					</div>
+					<main class="max-w-7xl mx-auto w-full px-4 md:px-6 py-6">
+						{ children... }
+					</main>
+				</div>
+				<div class="drawer-side z-40">
+					<label for="bw-drawer" class="drawer-overlay"></label>
+					<ul class="menu bg-base-200/60 backdrop-blur text-base-content min-h-full w-60 p-4 gap-1 border-r border-cyan-400/10">
+						<li class="menu-title text-xs uppercase tracking-widest opacity-60">Navigate</li>
+						<li><a href="/" class={ NavItemClass(section, "dashboard") }>
+							<span>▦</span>Dashboard
+						</a></li>
+						<li><a href="/devices" class={ NavItemClass(section, "devices") }>
+							<span>◎</span>Devices
+						</a></li>
+						<li><a href="/events" class={ NavItemClass(section, "events") }>
+							<span>!</span>Events
+						</a></li>
+						<li class="menu-title text-xs uppercase tracking-widest opacity-60 mt-4">Signal</li>
+						<li class="px-2 text-xs opacity-50 leading-relaxed">
+							Tracking BLE presence,<br/>RSSI drift &amp; rogue<br/>advertisers on 2.4 GHz.
+						</li>
+					</ul>
+				</div>
+			</div>
+			<script>
+				window.postAction = function (url) {
+					fetch(url, { method: 'POST' }).then(function () { window.location.reload(); });
+				};
+				window.setDeviceGroup = function (mac) {
+					var input = document.getElementById('group-' + mac);
+					if (!input) return;
+					fetch('/api/devices/' + mac + '/group', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ group: input.value.trim() })
+					}).then(function () { window.location.reload(); });
+				};
+				window.filterDevices = function (button) {
+					var filter = button.getAttribute('data-filter');
+					document.querySelectorAll('[data-filter]').forEach(function (b) {
+						b.classList.remove('btn-primary'); b.classList.add('btn-ghost');
+					});
+					button.classList.remove('btn-ghost'); button.classList.add('btn-primary');
+					document.querySelectorAll('.bw-device-card').forEach(function (card) {
+						var show = filter === 'all' ||
+							(filter === 'present' && card.dataset.present === 'true') ||
+							(filter === 'recognized' && card.dataset.recognized === 'true') ||
+							(filter.indexOf('group:') === 0 && card.dataset.group === filter.slice(6));
+						card.classList.toggle('hidden', !show);
+					});
+				};
+			</script>
+			<script>
+				(function () {
+					var btn = document.getElementById('theme-toggle');
+					if (!btn) return;
+					btn.addEventListener('click', function () {
+						var cur = document.documentElement.getAttribute('data-theme');
+						var next = cur === 'light' ? 'dark' : 'light';
+						document.documentElement.setAttribute('data-theme', next);
+						document.documentElement.style.colorScheme = next;
+						localStorage.setItem('theme', next);
+					});
+				})();
+			</script>
+		</body>
+	</html>
+}

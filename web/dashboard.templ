@@ -1,0 +1,114 @@
+package web
+
+// Dashboard renders the live overview page.
+templ Dashboard(data DashboardData) {
+	@Base("Dashboard", "dashboard") {
+		<header class="mb-6 flex items-end justify-between flex-wrap gap-3">
+			<div>
+				<h1 class="text-3xl font-bold tracking-tight">Spectrum <span class="bw-heading">watch</span></h1>
+				<p class="opacity-60 mt-1">BLE presence, RSSI drift &amp; rogue-advertiser detection</p>
+			</div>
+			<div class="mono text-xs opacity-50">stream <span class="text-cyan-400">global</span> · { data.TotalDevices } devices</div>
+		</header>
+
+		<div id="live-devices">
+			@DeviceGrid(data)
+		</div>
+
+		<div class="grid lg:grid-cols-2 gap-6 mt-6 items-start">
+			<section class="bw-panel p-5">
+				<div class="flex items-center justify-between mb-3">
+					<h2 class="font-semibold">Anomaly feed</h2>
+					<a href="/events" class="text-xs text-cyan-400 hover:underline">view all →</a>
+				</div>
+				<div id="live-events">
+					@EventFeed(data.Events)
+				</div>
+			</section>
+			<section class="bw-panel p-5">
+				<h2 class="font-semibold mb-3">Detection modes</h2>
+				<ul class="space-y-3 text-sm opacity-80">
+					<li class="flex gap-3"><span>RSSI</span><span><b>Signal surge:</b> a recognized device's observed signal is far above its baseline.</span></li>
+					<li class="flex gap-3"><span>!</span><span><b>Name match:</b> an unknown address uses a recognized device's name. This does not establish spoofing.</span></li>
+					<li class="flex gap-3"><span>R</span><span><b>Address churn:</b> a burst of distinct random addresses. This does not establish a threat.</span></li>
+					<li class="flex gap-3"><span>*</span><span><b>Auto-learn:</b> recurring devices are marked recognized. Recognition is not authentication.</span></li>
+				</ul>
+			</section>
+		</div>
+
+		<script>
+			(function () {
+				var last = 0;
+				var kinds = ['device_seen','appeared','disappeared','rssi_anomaly','rogue_device','mac_rotation','device_recognized'];
+				var es = new EventSource('/api/stream');
+				function refresh() {
+					var now = Date.now();
+					if (now - last < 3000) return;
+					last = now;
+					if (window.htmx) {
+						htmx.ajax('GET', '/partials/devices', { target: '#live-devices', swap: 'innerHTML' });
+						htmx.ajax('GET', '/partials/events', { target: '#live-events', swap: 'innerHTML' });
+					}
+				}
+				kinds.forEach(function (k) { es.addEventListener(k, refresh); });
+			})();
+			window.addEventListener('DOMContentLoaded', function () {
+				var present = document.querySelector('[data-filter="present"]');
+				if (present) filterDevices(present);
+			});
+		</script>
+	}
+}
+
+// DeviceGrid renders the stats row + live device cards (also used as a partial).
+templ DeviceGrid(data DashboardData) {
+	<div class="grid grid-cols-3 gap-3 mb-5">
+		<div class="bw-panel p-4 text-center">
+			<div class="text-3xl font-bold bw-heading">{ data.TotalDevices }</div>
+			<div class="text-xs uppercase tracking-widest opacity-50 mt-1">Tracked</div>
+		</div>
+		<div class="bw-panel p-4 text-center">
+			<div class="text-3xl font-bold text-cyan-400">{ data.PresentCount }</div>
+			<div class="text-xs uppercase tracking-widest opacity-50 mt-1">Present</div>
+		</div>
+		<div class="bw-panel p-4 text-center">
+			<div class="text-3xl font-bold text-fuchsia-400">{ data.RecognizedCount }</div>
+			<div class="text-xs uppercase tracking-widest opacity-50 mt-1">Recognized</div>
+		</div>
+	</div>
+	<div class="bw-panel p-3 mb-5 flex items-center gap-2 flex-wrap">
+		<span class="text-xs uppercase tracking-widest opacity-50 mr-1">Show</span>
+		<button class="btn btn-xs btn-primary" data-filter="present" onclick="filterDevices(this)">Present</button>
+		<button class="btn btn-xs btn-ghost" data-filter="recognized" onclick="filterDevices(this)">Recognized</button>
+		<button class="btn btn-xs btn-ghost" data-filter="all" onclick="filterDevices(this)">All</button>
+		for _, group := range DeviceGroups(data.Devices) {
+			<button class="btn btn-xs btn-ghost" data-filter={ "group:" + group } onclick="filterDevices(this)">{ group }</button>
+		}
+	</div>
+
+	if len(data.Devices) == 0 {
+		<div class="bw-panel p-10 text-center opacity-60">
+			<p class="text-2xl mb-2">BLE</p>
+			<p>Scanning for BLE devices… none seen yet.</p>
+		</div>
+	} else {
+		<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+			for _, d := range data.Devices {
+				@DeviceCardView(d)
+			}
+		</div>
+	}
+}
+
+// EventFeed renders a list of recent events (also used as a partial).
+templ EventFeed(events []EventCard) {
+	if len(events) == 0 {
+		<p class="text-sm opacity-50">No events yet.</p>
+	} else {
+		<div>
+			for _, e := range events {
+				@EventRow(e)
+			}
+		</div>
+	}
+}

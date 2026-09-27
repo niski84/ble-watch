@@ -1,0 +1,51 @@
+package web
+
+// EventsPage renders the full event log with acknowledge actions.
+templ EventsPage(data EventsPageData) {
+	@Base("Events", "events") {
+		<header class="mb-6 flex items-end justify-between flex-wrap gap-3">
+			<div>
+				<h1 class="text-3xl font-bold tracking-tight">Event <span class="bw-heading">log</span></h1>
+				<p class="opacity-60 mt-1">Presence transitions, signal surges, and rogue-device alerts.</p>
+			</div>
+			<div class="mono text-xs opacity-50">{ len(data.Events) } events</div>
+		</header>
+
+		if len(data.Events) == 0 {
+			<div class="bw-panel p-10 text-center opacity-60">
+				<p class="text-2xl mb-2">Events</p>
+				<p>No events recorded yet.</p>
+			</div>
+		} else {
+			<div class="bw-panel divide-y divide-base-content/5">
+				for _, e := range data.Events {
+					<div class="flex items-start gap-3 p-4">
+						<span class="text-xl leading-none mt-0.5">{ KindEmoji(e.Kind) }</span>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2 flex-wrap">
+								<span class="font-medium">{ KindLabel(e.Kind) }</span>
+								<span class={ "badge badge-xs " + SeverityBadge(e.Severity) }>{ e.Severity }</span>
+								if e.Acknowledged {
+									<span class="badge badge-xs badge-ghost">acknowledged</span>
+								}
+							</div>
+							<p class="text-sm opacity-80 mt-1">{ e.Name } <span class="mono text-xs opacity-50">{ e.Mac }</span></p>
+							if e.Details != "" {
+								<p class="mono text-[11px] opacity-40 mt-0.5 truncate">{ e.Details }</p>
+							}
+							<p class="mono text-[11px] opacity-45 mt-1">{ e.Time }</p>
+						</div>
+						<div class="flex flex-col items-end gap-2 shrink-0">
+							if e.RSSI != 0 {
+								<span class="mono text-xs opacity-60">{ RSSILabel(e.RSSI) }</span>
+							}
+							if !e.Acknowledged {
+								<button class="btn btn-xs btn-outline" onclick="postAction('/api/events/{ e.ID }/ack')">Ack</button>
+							}
+						</div>
+					</div>
+				}
+			</div>
+		}
+	}
+}

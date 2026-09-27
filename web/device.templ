@@ -1,0 +1,202 @@
+package web
+
+// DevicePage renders the per-device detail page with charts.
+templ DevicePage(data DevicePageData) {
+	@Base("Device "+data.Device.Mac, "devices") {
+		<div class="mb-6 flex items-start justify-between flex-wrap gap-4">
+			<div>
+				<a href="/devices" class="text-xs text-cyan-400 hover:underline">← all devices</a>
+				<h1 class="text-2xl font-bold tracking-tight mt-1">{ deviceLabel(data.Device) }</h1>
+				<p class="mono text-sm opacity-50 mt-1">{ data.Device.Mac }</p>
+				<div class="flex items-center gap-1.5 mt-2 flex-wrap">
+					if data.Device.Manufacturer != "" {
+						<span class="badge badge-sm badge-outline">{ data.Device.Manufacturer }</span>
+					}
+					if data.Device.AddressType != "" {
+						<span class="badge badge-sm badge-ghost">{ data.Device.AddressType }</span>
+					}
+					if data.Device.Recognized {
+						<span class="badge badge-sm badge-accent">* recognized</span>
+					} else {
+						<span class="badge badge-sm badge-ghost">unknown</span>
+					}
+				</div>
+			</div>
+			<div class="flex items-center gap-2 flex-wrap">
+				if data.Device.Recognized {
+					<button class="btn btn-sm btn-outline" onclick="postAction('/api/devices/{ data.Device.Mac }/unrecognize')">Unrecognize</button>
+				} else {
+					<button class="btn btn-sm btn-accent" onclick="postAction('/api/devices/{ data.Device.Mac }/recognize')">* Recognize</button>
+				}
+			</div>
+		</div>
+
+		<div class="bw-panel p-4 mb-6 flex items-center gap-3">
+			<span class="text-sm opacity-60">Rename:</span>
+			<input id="rename-input" type="text" class="input input-bordered input-sm flex-1 max-w-xs" placeholder={ deviceLabel(data.Device) } value={ data.Device.Name }/>
+			<button class="btn btn-sm" onclick="renameDevice('{ data.Device.Mac }')">Save</button>
+			<span class="text-sm opacity-60 ml-3">Group:</span>
+			<input id={ "group-" + data.Device.Mac } type="text" class="input input-bordered input-sm flex-1 max-w-xs" placeholder="Family, Neighbor…" value={ data.Device.Group }/>
+			<button class="btn btn-sm" onclick="setDeviceGroup('{ data.Device.Mac }')">Save</button>
+		</div>
+
+		<div class="grid sm:grid-cols-3 gap-3 mb-6">
+			<div class="bw-panel p-4"><div class="text-xs uppercase tracking-widest opacity-50">Source</div><div class="font-semibold mt-1">{ data.Device.Source }</div></div>
+			<div class="bw-panel p-4"><div class="text-xs uppercase tracking-widest opacity-50">First seen</div><div class="font-semibold mt-1">{ data.Device.FirstSeenAt }</div></div>
+			<div class="bw-panel p-4"><div class="text-xs uppercase tracking-widest opacity-50">Sightings</div><div class="font-semibold mt-1">{ data.Device.SeenCount }</div></div>
+		</div>
+
+		<div class="bw-panel p-5 mb-6">
+			<div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+				<h2 class="font-semibold">RSSI over time</h2>
+				<div class="btn-group">
+					for _, h := range HourOptions() {
+						<button class={ HourBtnClass(h.Active) } data-hours={ h.Val } onclick="setHours(this)">{ h.Label }</button>
+					}
+				</div>
+			</div>
+			<div class="h-72"><canvas id="rssi-chart"></canvas></div>
+		</div>
+
+		<div class="grid md:grid-cols-2 gap-6 mb-6">
+			<div class="bw-panel p-5">
+				<h2 class="font-semibold mb-4">Signal histogram</h2>
+				<div class="h-56"><canvas id="hist-chart"></canvas></div>
+			</div>
+			<div class="bw-panel p-5">
+				<h2 class="font-semibold mb-4">Presence</h2>
+				<div id="presence-timeline" class="space-y-2 text-sm opacity-80"></div>
+			</div>
+		</div>
+
+		<section class="bw-panel p-5">
+			<h2 class="font-semibold mb-3">Events for this device</h2>
+			@EventFeed(data.Events)
+		</section>
+
+		<div id="device-charts" data-mac={ data.Device.Mac } data-hours="6" class="hidden"></div>
+		<script>
+			window.renameDevice = function (mac) {
+				var name = document.getElementById('rename-input').value.trim();
+				if (!name) return;
+				fetch('/api/devices/' + mac + '/rename', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name: name })
+				}).then(function () { window.location.reload(); });
+			};
+			window.setHours = function (btn) {
+				var root = document.getElementById('device-charts');
+				root.dataset.hours = btn.getAttribute('data-hours');
+				document.querySelectorAll('.btn-group .btn').forEach(function (b) {
+					b.classList.remove('btn-primary'); b.classList.add('btn-ghost');
+				});
+				btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+				loadCharts();
+			};
+			var rssiChart = null, histChart = null;
+			function fmtTime(ts) {
+				return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+			}
+			function loadCharts() {
+				var root = document.getElementById('device-charts');
+				var mac = root.dataset.mac;
+				var hours = parseInt(root.dataset.hours || '6', 10);
+				fetch('/api/devices/' + mac + '/chart?hours=' + hours)
+					.then(function (r) { return r.json(); })
+					.then(function (d) {
+						renderLine(d, hours);
+						renderHist(d);
+						renderPresence(d, hours);
+					});
+			}
+			function renderLine(d, hours) {
+				var labels = d.series.map(function (p) { return fmtTime(p.ts); });
+				var rssi = d.series.map(function (p) { return p.rssi; });
+				var mean = d.series.map(function () { return d.mean; });
+				var up = d.series.map(function () { return d.mean + d.std; });
+				var lo = d.series.map(function () { return d.mean - d.std; });
+				var ctx = document.getElementById('rssi-chart');
+				if (rssiChart) rssiChart.destroy();
+				rssiChart = new Chart(ctx, {
+					type: 'line',
+					data: { labels: labels, datasets: [
+						{ label: 'RSSI', data: rssi, borderColor: '#22d3ee', backgroundColor: 'rgba(34,211,238,.12)', fill: true, tension: .25, pointRadius: 0, borderWidth: 2 },
+						{ label: 'baseline', data: mean, borderColor: '#e879f9', borderDash: [6,4], pointRadius: 0, borderWidth: 1, fill: false },
+						{ label: '+σ', data: up, borderColor: 'rgba(232,121,249,.35)', borderDash: [2,4], pointRadius: 0, borderWidth: 1, fill: false },
+						{ label: '-σ', data: lo, borderColor: 'rgba(232,121,249,.35)', borderDash: [2,4], pointRadius: 0, borderWidth: 1, fill: false }
+					]},
+					options: {
+						animation: false, responsive: true, maintainAspectRatio: false,
+						scales: {
+							x: { ticks: { color: 'rgba(148,163,184,.6)', maxTicksLimit: 8 }, grid: { color: 'rgba(148,163,184,.06)' } },
+							y: { ticks: { color: 'rgba(148,163,184,.6)' }, grid: { color: 'rgba(148,163,184,.08)' }, title: { display: true, text: 'dBm', color: 'rgba(148,163,184,.6)' } }
+						},
+						plugins: { legend: { labels: { color: 'rgba(148,163,184,.8)', boxWidth: 12 } } }
+					}
+				});
+			}
+			function renderHist(d) {
+				var labels = d.histogram.map(function (b) { return b.lo; });
+				var counts = d.histogram.map(function (b) { return b.count; });
+				var ctx = document.getElementById('hist-chart');
+				if (histChart) histChart.destroy();
+				histChart = new Chart(ctx, {
+					type: 'bar',
+					data: { labels: labels, datasets: [{ label: 'samples', data: counts, backgroundColor: 'rgba(232,121,249,.55)', borderColor: '#e879f9', borderWidth: 1 }] },
+					options: {
+						animation: false, responsive: true, maintainAspectRatio: false,
+						scales: {
+							x: { title: { display: true, text: 'RSSI (dBm)', color: 'rgba(148,163,184,.6)' }, ticks: { color: 'rgba(148,163,184,.6)', maxTicksLimit: 10 }, grid: { color: 'rgba(148,163,184,.06)' } },
+							y: { ticks: { color: 'rgba(148,163,184,.6)' }, grid: { color: 'rgba(148,163,184,.08)' } }
+						},
+						plugins: { legend: { display: false } }
+					}
+				});
+			}
+			function renderPresence(d, hours) {
+				var el = document.getElementById('presence-timeline');
+				el.innerHTML = '';
+				if (!d.present || d.present.length === 0) {
+					var empty = document.createElement('p');
+					empty.className = 'opacity-50';
+					empty.textContent = 'No presence data in window.';
+					el.appendChild(empty);
+					return;
+				}
+				var now = Date.now() / 1000;
+				var win = hours * 3600;
+				var start = now - win;
+				d.present.forEach(function (s) {
+					var a = Math.max(s.start, start), b = s.end;
+					if (b <= start) return;
+					var dur = Math.max(1, Math.round(b - a));
+					var row = document.createElement('div');
+					row.className = 'flex items-center gap-3';
+					var t1 = document.createElement('span');
+					t1.className = 'mono text-xs w-24 shrink-0';
+					t1.textContent = fmtTime(a);
+					var bar = document.createElement('div');
+					bar.className = 'h-3 rounded-full bg-cyan-400/30 flex-1';
+					var fill = document.createElement('div');
+					fill.className = 'h-3 rounded-full bg-cyan-400/70';
+					fill.style.width = Math.min(100, dur / win * 100) + '%';
+					bar.appendChild(fill);
+					var t2 = document.createElement('span');
+					t2.className = 'mono text-xs opacity-50 w-20 text-right shrink-0';
+					t2.textContent = fmtDur(dur);
+					row.appendChild(t1);
+					row.appendChild(bar);
+					row.appendChild(t2);
+					el.appendChild(row);
+				});
+			}
+			function fmtDur(sec) {
+				if (sec < 60) return sec + 's';
+				if (sec < 3600) return Math.round(sec / 60) + 'm';
+				return (sec / 3600).toFixed(1) + 'h';
+			}
+			loadCharts();
+		</script>
+	}
+}

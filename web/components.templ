@@ -1,0 +1,105 @@
+package web
+
+// DeviceCardView renders one device as a card (dashboard + devices pages).
+templ DeviceCardView(d DeviceCard) {
+	<a href={ "/devices/" + d.Mac } data-group={ d.Group } data-present={ BoolLabel(d.Present) } data-recognized={ BoolLabel(d.Recognized) } class="bw-device-card bw-panel bw-glow block p-4 hover:border-cyan-400/40 transition group">
+		<div class="flex items-start justify-between gap-2">
+			<div class="min-w-0">
+				<div class="flex items-center gap-2">
+					<span class={ PresenceDotClass(d.Present) }></span>
+					<h3 class="font-semibold truncate">{ deviceLabel(d) }</h3>
+				</div>
+				<p class="mono text-xs opacity-50 mt-0.5">{ d.Mac }</p>
+				<div class="flex items-center gap-1.5 mt-2 flex-wrap">
+					if d.Manufacturer != "" {
+						<span class="badge badge-sm badge-outline">{ d.Manufacturer }</span>
+					}
+					if d.AddressType != "" {
+						<span class="badge badge-sm badge-ghost">{ d.AddressType }</span>
+					}
+					if d.Recognized {
+						<span class="badge badge-sm badge-accent">* recognized</span>
+					}
+					if d.Group != "" {
+						<span class="badge badge-sm badge-info">{ d.Group }</span>
+					}
+				</div>
+			</div>
+			<div class="text-right shrink-0">
+				<div class="mono text-sm font-medium">{ RSSILabel(d.LastRSSI) }</div>
+				<div class="text-[10px] opacity-50">{ d.LastSeenAt }</div>
+			</div>
+		</div>
+		<div class="mt-3">
+			<div class="h-1.5 w-full rounded-full bg-base-content/10 overflow-hidden">
+				<div class={ "sig-bar h-full " + RSSIBarColor(d.LastRSSI) } style={ "width:" + RSSIBarWidth(d.LastRSSI) }></div>
+			</div>
+			<div class="flex justify-between text-[10px] opacity-40 mt-1">
+				<span>{ d.SeenCount } sightings</span>
+				<span>signal</span>
+			</div>
+		</div>
+	</a>
+}
+
+// ManageCard renders a device card with recognize/unrecognize actions (devices page).
+templ ManageCard(d DeviceCard) {
+	<div class="bw-panel p-4">
+		<div class="flex items-start justify-between gap-2">
+			<div class="min-w-0">
+				<div class="flex items-center gap-2">
+					<span class={ PresenceDotClass(d.Present) }></span>
+					<h3 class="font-semibold truncate">{ deviceLabel(d) }</h3>
+				</div>
+				<p class="mono text-xs opacity-50 mt-0.5">{ d.Mac }</p>
+				<div class="flex items-center gap-1.5 mt-2 flex-wrap">
+					if d.Manufacturer != "" {
+						<span class="badge badge-sm badge-outline">{ d.Manufacturer }</span>
+					}
+					if d.Recognized {
+						<span class="badge badge-sm badge-accent">* recognized</span>
+					}
+					if d.Group != "" {
+						<span class="badge badge-sm badge-info">{ d.Group }</span>
+					}
+				</div>
+			</div>
+			<div class="text-right shrink-0">
+				<div class="mono text-sm font-medium">{ RSSILabel(d.LastRSSI) }</div>
+			</div>
+		</div>
+		<div class="mt-3 flex items-center gap-2">
+			if d.Recognized {
+				<button class="btn btn-xs btn-outline" onclick="postAction('/api/devices/{ d.Mac }/unrecognize')">Unrecognize</button>
+			} else {
+				<button class="btn btn-xs btn-accent" onclick="postAction('/api/devices/{ d.Mac }/recognize')">* Recognize</button>
+			}
+			<a class="btn btn-xs btn-ghost" href={ "/devices/" + d.Mac }>details →</a>
+		</div>
+		<div class="mt-3 flex items-center gap-2">
+			<input id={ "group-" + d.Mac } type="text" class="input input-bordered input-xs flex-1" placeholder="Group (Family, Neighbor…)" value={ d.Group }/>
+			<button class="btn btn-xs btn-ghost" onclick="setDeviceGroup('{ d.Mac }')">Save group</button>
+		</div>
+	</div>
+}
+
+// EventRow renders one event in a feed/list.
+templ EventRow(e EventCard) {
+	<div class="flex items-start gap-3 py-2.5 border-b border-base-content/5 last:border-0">
+		<span class="text-lg leading-none mt-0.5">{ KindEmoji(e.Kind) }</span>
+		<div class="min-w-0 flex-1">
+			<div class="flex items-center gap-2 flex-wrap">
+				<span class="font-medium">{ KindLabel(e.Kind) }</span>
+				<span class={ "badge badge-xs " + SeverityBadge(e.Severity) }>{ e.Severity }</span>
+				if !e.Acknowledged {
+					<span class="badge badge-xs badge-outline badge-warning">unacked</span>
+				}
+			</div>
+			<p class="text-sm opacity-80 mt-0.5">{ e.Name }{ e.Mac }</p>
+			<p class="mono text-[11px] opacity-45 mt-0.5">{ e.Time }</p>
+		</div>
+		if e.RSSI != 0 {
+			<div class="mono text-xs opacity-60 shrink-0">{ RSSILabel(e.RSSI) }</div>
+		}
+	</div>
+}
