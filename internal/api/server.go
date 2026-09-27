@@ -12,6 +12,7 @@ import (
 	"github.com/niski84/ble-watch/internal/anomaly"
 	"github.com/niski84/ble-watch/internal/config"
 	"github.com/niski84/ble-watch/internal/ingest"
+	"github.com/niski84/ble-watch/internal/scanner"
 	"github.com/niski84/ble-watch/internal/store"
 	"github.com/niski84/ble-watch/web"
 )
@@ -23,17 +24,22 @@ type Server struct {
 	hub       *alert.Hub
 	detector  *anomaly.Detector
 	processor *ingest.Processor
+	scanner   *scanner.Scanner
 }
 
 // NewServer builds an http.Handler with all routes registered.
-func NewServer(cfg config.Config, st *store.Store, hub *alert.Hub, det *anomaly.Detector, processor *ingest.Processor) http.Handler {
+func NewServer(cfg config.Config, st *store.Store, hub *alert.Hub, det *anomaly.Detector, processor *ingest.Processor, scanners ...*scanner.Scanner) http.Handler {
 	s := &Server{cfg: cfg, store: st, hub: hub, detector: det, processor: processor}
+	if len(scanners) > 0 {
+		s.scanner = scanners[0]
+	}
 
 	mux := http.NewServeMux()
 
 	// Health reports service liveness, not scanner or task health.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/ingestion", s.handleIngestion)
+	mux.HandleFunc("GET /api/scanner", s.handleScanner)
 
 	// Devices
 	mux.HandleFunc("GET /api/devices", s.handleListDevices)
@@ -66,6 +72,20 @@ func NewServer(cfg config.Config, st *store.Store, hub *alert.Hub, det *anomaly.
 	mux.HandleFunc("GET /favicon.svg", s.handleFavicon)
 
 	return withLogging(mux)
+}
+
+func (s *Server) handleScanner(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if s.scanner == nil {
+		respondJSON(w, http.StatusServiceUnavailable, scanner.Health{State: "unavailable", Activity: "unknown"})
+		return
+	}
+	health := s.scanner.Health()
+	status := http.StatusOK
+	if !health.Ready {
+		status = http.StatusServiceUnavailable
+	}
+	respondJSON(w, status, health)
 }
 
 func (s *Server) handleIngestion(w http.ResponseWriter, r *http.Request) {

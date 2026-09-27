@@ -2,11 +2,9 @@ package scanner
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"errors"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -22,287 +20,223 @@ const (
 	cacheMaxAge     = 15 * time.Minute
 )
 
-// Scanner discovers BLE devices via BlueZ D-Bus and emits observations.
-type Scanner struct {
-	adapter string
+type cachedDevice struct {
+	props map[string]dbus.Variant
+	ts    int64
 }
 
-// New returns a Scanner for the given BlueZ adapter (e.g. "hci0").
-func New(adapter string) *Scanner {
-	return &Scanner{adapter: adapter}
-}
-
-// Run connects to BlueZ, starts passive LE discovery, and streams observations
-// to out until ctx is cancelled. It returns nil on clean shutdown.
-func (s *Scanner) Run(ctx context.Context, out chan<- Observation) error {
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return fmt.Errorf("system bus: %w", err)
-	}
-	defer conn.Close()
-
-	adapterPath := dbus.ObjectPath("/org/bluez/" + s.adapter)
-	adapter := conn.Object(bluezService, adapterPath)
-
-	// Passive LE discovery, with duplicate data so RSSI updates stream continuously.
-	filter := map[string]dbus.Variant{
-		"Transport":     dbus.MakeVariant("le"),
-		"RSSI":          dbus.MakeVariant(int16(-100)),
-		"DuplicateData": dbus.MakeVariant(true),
-	}
-	if err := adapter.Call(adapterIface+".SetDiscoveryFilter", 0, filter).Err; err != nil {
-		log.Printf("[ble-watch] SetDiscoveryFilter: %v (continuing)", err)
-	}
-	if err := adapter.Call(adapterIface+".StartDiscovery", 0).Err; err != nil {
-		return fmt.Errorf("StartDiscovery: %w", err)
-	}
-	defer func() { _ = adapter.Call(adapterIface+".StopDiscovery", 0).Err }()
-
-	if err := conn.AddMatchSignal(
-		dbus.WithMatchSender(bluezService),
-		dbus.WithMatchInterface(propsIface),
-		dbus.WithMatchMember("PropertiesChanged"),
-	); err != nil {
-		return fmt.Errorf("match PropertiesChanged: %w", err)
-	}
-	if err := conn.AddMatchSignal(
-		dbus.WithMatchSender(bluezService),
-		dbus.WithMatchInterface(objMgrIface),
-	); err != nil {
-		return fmt.Errorf("match ObjectManager: %w", err)
-	}
-
-	signals := make(chan *dbus.Signal, 256)
-	conn.Signal(signals)
-
-	seed(conn, out)
-
-	cache := newCache()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case sig := <-signals:
-			if sig == nil {
-				return nil
-			}
-			handleSignal(sig, cache, out)
-		}
-	}
-}
-
-// cache carries forward stable fields (name, address type, mfg) across partial
-// PropertiesChanged updates that only include e.g. RSSI.
+// The run loop owns the cache. Seeds and signals share partial metadata.
 type cache struct {
-	mu    sync.Mutex
-	byMAC map[string]*Observation
+	byMAC map[string]cachedDevice
 }
 
-func newCache() *cache { return &cache{byMAC: make(map[string]*Observation)} }
+func newCache() *cache { return &cache{byMAC: make(map[string]cachedDevice)} }
 
-func (c *cache) merge(o *Observation) *Observation {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pruneLocked(o.Ts)
-	prev, ok := c.byMAC[o.Mac]
-	if !ok {
-		c.byMAC[o.Mac] = o
-		return o
-	}
-	if o.Name == "" {
-		o.Name = prev.Name
-	}
-	if o.AddressType == "" {
-		o.AddressType = prev.AddressType
-	}
-	if o.MfgID == 0 {
-		o.MfgID = prev.MfgID
-	}
-	if o.ServiceUUIDs == "" {
-		o.ServiceUUIDs = prev.ServiceUUIDs
-	}
-	c.byMAC[o.Mac] = o
-	return o
-}
-
-func (c *cache) pruneLocked(now int64) {
-	if len(c.byMAC) <= maxCacheEntries {
-		return
-	}
-	cutoff := now - int64(cacheMaxAge.Seconds())
-	for mac, o := range c.byMAC {
-		if o.Ts < cutoff {
-			delete(c.byMAC, mac)
-		}
-	}
-	// A scan can encounter more random addresses than the age window covers.
-	// Keep a hard bound in that case by evicting the oldest entries.
-	for len(c.byMAC) > maxCacheEntries {
-		oldestMAC := ""
-		var oldest int64
-		for mac, o := range c.byMAC {
-			if oldestMAC == "" || o.Ts < oldest {
-				oldestMAC, oldest = mac, o.Ts
+func (c *cache) merge(mac string, props map[string]dbus.Variant, invalidated []string) *Observation {
+	now := time.Now().Unix()
+	prev := c.byMAC[mac]
+	if prev.props == nil {
+		if len(c.byMAC) >= maxCacheEntries {
+			oldestMAC := ""
+			var oldest int64
+			for key, entry := range c.byMAC {
+				if entry.ts < now-int64(cacheMaxAge.Seconds()) {
+					delete(c.byMAC, key)
+					continue
+				}
+				if oldestMAC == "" || entry.ts < oldest {
+					oldestMAC, oldest = key, entry.ts
+				}
+			}
+			if len(c.byMAC) >= maxCacheEntries {
+				delete(c.byMAC, oldestMAC)
 			}
 		}
-		delete(c.byMAC, oldestMAC)
+		prev.props = make(map[string]dbus.Variant)
 	}
+	for _, key := range invalidated {
+		delete(prev.props, key)
+	}
+	for _, key := range []string{"Alias", "Name", "AddressType", "RSSI", "ManufacturerData", "UUIDs"} {
+		if value, ok := props[key]; ok {
+			prev.props[key] = value
+		}
+	}
+	prev.ts = now
+	c.byMAC[mac] = prev
+	return obsFromProps(mac, prev.props)
 }
 
-func handleSignal(sig *dbus.Signal, c *cache, out chan<- Observation) {
+func (s *Scanner) handleSignal(ctx context.Context, sig *dbus.Signal, c *cache, out chan<- Observation) error {
+	var path dbus.ObjectPath
+	var props map[string]dbus.Variant
+	var invalidated []string
 	switch sig.Name {
+	case "org.freedesktop.DBus.NameOwnerChanged":
+		if len(sig.Body) == 3 && sig.Body[0] == bluezService && sig.Body[1] != "" {
+			return errors.New("bluez_owner_changed")
+		}
+		return nil
 	case propsIface + ".PropertiesChanged":
 		if len(sig.Body) < 2 {
-			return
+			return nil
 		}
 		iface, _ := sig.Body[0].(string)
+		props, _ = sig.Body[1].(map[string]dbus.Variant)
+		if len(sig.Body) > 2 {
+			invalidated, _ = sig.Body[2].([]string)
+		}
+		if sig.Path == s.adapterPath() && iface == adapterIface {
+			s.adapterProperties(props, invalidated)
+			return nil
+		}
 		if iface != deviceIface {
-			return
+			return nil
 		}
-		changed, ok := sig.Body[1].(map[string]dbus.Variant)
-		if !ok {
-			return
-		}
-		mac := macFromPath(sig.Path)
-		if mac == "" {
-			return
-		}
-		o := obsFromProps(mac, changed)
-		if o == nil {
-			return
-		}
-		out <- *c.merge(o)
-
+		path = sig.Path
 	case objMgrIface + ".InterfacesAdded":
 		if len(sig.Body) < 2 {
-			return
+			return nil
 		}
-		path, _ := sig.Body[0].(dbus.ObjectPath)
-		ifaces, ok := sig.Body[1].(map[string]map[string]dbus.Variant)
-		if !ok {
-			return
+		path, _ = sig.Body[0].(dbus.ObjectPath)
+		ifaces, _ := sig.Body[1].(map[string]map[string]dbus.Variant)
+		props = ifaces[deviceIface]
+	case objMgrIface + ".InterfacesRemoved":
+		if len(sig.Body) < 2 {
+			return nil
 		}
-		props, ok := ifaces[deviceIface]
-		if !ok {
-			return
+		path, _ = sig.Body[0].(dbus.ObjectPath)
+		ifaces, _ := sig.Body[1].([]string)
+		for _, iface := range ifaces {
+			if path == s.adapterPath() && iface == adapterIface {
+				return errors.New("adapter_removed")
+			}
+			if iface == deviceIface {
+				delete(c.byMAC, s.deviceMAC(path))
+			}
 		}
-		mac := macFromPath(path)
-		if mac == "" {
-			return
-		}
-		if o := obsFromProps(mac, props); o != nil {
-			out <- *c.merge(o)
-		}
+		return nil
+	default:
+		return nil
 	}
+	mac := s.deviceMAC(path)
+	if mac == "" || props == nil {
+		return nil
+	}
+	s.updateHealth(func(h *Health) { h.DeviceSignals++ })
+	o := c.merge(mac, props, invalidated)
+	// Metadata-only changes do not constitute a fresh sighting.
+	if !advertisingUpdate(props) {
+		return nil
+	}
+	return s.emit(ctx, out, *o, false)
 }
 
-func seed(conn *dbus.Conn, out chan<- Observation) {
-	obj := conn.Object(bluezService, "/")
-	var managed map[dbus.ObjectPath]map[string]map[string]dbus.Variant
-	if err := obj.Call(objMgrIface+".GetManagedObjects", 0).Store(&managed); err != nil {
-		log.Printf("[ble-watch] GetManagedObjects: %v", err)
-		return
+func advertisingUpdate(props map[string]dbus.Variant) bool {
+	if v, ok := props["RSSI"]; ok {
+		if _, ok := v.Value().(int16); ok {
+			return true
+		}
 	}
+	for _, key := range []string{"ManufacturerData", "ServiceData"} {
+		if v, ok := props[key]; ok {
+			switch value := v.Value().(type) {
+			case map[uint16]dbus.Variant:
+				if key == "ManufacturerData" && len(value) > 0 {
+					return true
+				}
+			case map[string]dbus.Variant:
+				if key == "ServiceData" && len(value) > 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *Scanner) seed(ctx context.Context, managed managedObjects, c *cache, out chan<- Observation) error {
 	for path, ifaces := range managed {
 		props, ok := ifaces[deviceIface]
-		if !ok {
+		mac := s.deviceMAC(path)
+		if !ok || mac == "" {
 			continue
 		}
-		mac := macFromPath(path)
-		if mac == "" {
-			continue
+		if err := s.emit(ctx, out, *c.merge(mac, props, nil), true); err != nil {
+			return err
 		}
-		if o := obsFromProps(mac, props); o != nil {
-			out <- *o
-		}
+	}
+	return nil
+}
+
+func (s *Scanner) emit(ctx context.Context, out chan<- Observation, o Observation, seeded bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case out <- o:
+		s.updateHealth(func(h *Health) {
+			if seeded {
+				h.Seeded++
+			} else {
+				h.LiveUpdates++
+				h.LastLiveUpdate = time.Now()
+			}
+		})
+		return nil
 	}
 }
 
-func macFromPath(p dbus.ObjectPath) string {
-	s := string(p)
-	idx := strings.LastIndex(s, "/")
-	if idx < 0 {
+func (s *Scanner) adapterPath() dbus.ObjectPath {
+	return dbus.ObjectPath("/org/bluez/" + s.adapter)
+}
+
+func (s *Scanner) deviceMAC(path dbus.ObjectPath) string {
+	prefix := string(s.adapterPath()) + "/dev_"
+	if !strings.HasPrefix(string(path), prefix) {
 		return ""
 	}
-	dev := s[idx+1:]
-	if !strings.HasPrefix(dev, "dev_") {
+	address := strings.TrimPrefix(string(path), prefix)
+	if len(address) != 17 {
 		return ""
 	}
-	return strings.ReplaceAll(strings.TrimPrefix(dev, "dev_"), "_", ":")
+	for i, char := range address {
+		if i%3 == 2 {
+			if char != '_' {
+				return ""
+			}
+		} else if !strings.ContainsRune("0123456789abcdefABCDEF", char) {
+			return ""
+		}
+	}
+	return strings.ToUpper(strings.ReplaceAll(address, "_", ":"))
 }
 
 func obsFromProps(mac string, props map[string]dbus.Variant) *Observation {
 	o := &Observation{Mac: mac, Ts: time.Now().Unix()}
-	if v, ok := props["RSSI"]; ok {
-		o.RSSI = float64(int16Variant(v))
+	if v, ok := props["RSSI"].Value().(int16); ok {
+		o.RSSI = float64(v)
 	}
 	if v, ok := props["Alias"]; ok {
-		o.Name = stringVariant(v)
-	} else if v, ok := props["Name"]; ok {
-		o.Name = stringVariant(v)
+		o.Name, _ = v.Value().(string)
+	} else {
+		o.Name, _ = props["Name"].Value().(string)
 	}
-	if v, ok := props["AddressType"]; ok {
-		o.AddressType = stringVariant(v)
+	o.AddressType, _ = props["AddressType"].Value().(string)
+	if m, ok := props["ManufacturerData"].Value().(map[uint16]dbus.Variant); ok {
+		ids := make([]int, 0, len(m))
+		for id := range m {
+			ids = append(ids, int(id))
+		}
+		sort.Ints(ids)
+		if len(ids) > 0 {
+			o.MfgID = ids[0]
+		}
 	}
-	if v, ok := props["ManufacturerData"]; ok {
-		o.MfgID = firstMfgID(v)
-	}
-	if v, ok := props["UUIDs"]; ok {
-		o.ServiceUUIDs = uuidList(v)
+	if uuids, ok := props["UUIDs"].Value().([]string); ok {
+		o.ServiceUUIDs = strings.Join(uuids, ",")
 	}
 	return o
-}
-
-func stringVariant(v dbus.Variant) string {
-	s, ok := v.Value().(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-func int16Variant(v dbus.Variant) int16 {
-	switch x := v.Value().(type) {
-	case int16:
-		return x
-	case int32:
-		return int16(x)
-	case int64:
-		return int16(x)
-	case uint16:
-		return int16(x)
-	}
-	return 0
-}
-
-func firstMfgID(v dbus.Variant) int {
-	m, ok := v.Value().(map[uint16]dbus.Variant)
-	if !ok {
-		return 0
-	}
-	ids := make([]int, 0, len(m))
-	for id := range m {
-		ids = append(ids, int(id))
-	}
-	if len(ids) == 0 {
-		return 0
-	}
-	sort.Ints(ids)
-	return ids[0]
-}
-
-func uuidList(v dbus.Variant) string {
-	switch x := v.Value().(type) {
-	case []string:
-		return strings.Join(x, ",")
-	case []interface{}:
-		parts := make([]string, 0, len(x))
-		for _, e := range x {
-			if s, ok := e.(string); ok {
-				parts = append(parts, s)
-			}
-		}
-		return strings.Join(parts, ",")
-	}
-	return ""
 }
