@@ -35,6 +35,20 @@ adding more workers would need an ordering strategy before it could provide a
 safe speed improvement. Queue storage is still unbounded. These are limits I
 need to address, not benefits I can claim from adding a dependency.
 
+When the Bluetooth adapter resumed receiving live updates, the raw-sighting
+path showed its limit. In one five-second window it accepted about 92 updates
+per second while the detector returned from about 56 per second. CPU was far
+from saturated in a separate sample. Because the observation includes changing
+fields, most queue items have distinct identities and cannot collapse. The
+accepted-minus-returned difference grew, but it is not a direct queue-length
+measurement. I would not call this a throughput win for Witchcraft.
+
+The better place for the task library is after durable observation intake:
+submit a key for a device and analysis window, let repeated requests for that
+key collapse, and make the worker recalculate from committed evidence. That
+would also give retries a safe, idempotent target. I want to benchmark that
+against the current path before describing it as an improvement.
+
 ## A submission is not a completed observation
 
 The existing submission methods return no error. That is reasonable for callers

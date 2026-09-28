@@ -38,6 +38,58 @@ rather than using the shared reload core. These are explicit follow-up items.
 
 ## What Witchcraft earns here
 
+### Current integration verdict
+
+The live per-observation submission is an experiment, not the intended final
+work boundary. Witchcraft accepts short tasks; task duration is not the problem.
+The problem is that a BlueZ update contains a changing timestamp and often a
+changing RSSI. Queue equality uses the whole observation, so the repeated
+submissions that its collapsing queue could combine are uncommon. Every
+detector call also performs database work, while detector errors are logged
+inside the call instead of returned to Witchcraft. The library therefore
+cannot retry a failed database operation here.
+
+After restoring live Bluetooth reception, a five-second sample accepted about
+92 observations per second and returned from the detector about 56 per second.
+The accepted-minus-returned difference increased by 180 during that interval.
+This is pressure evidence, not an exact queue length: accepted duplicates can
+collapse, and the library's queue gauge is not connected to the application.
+BLE Watch used about 7% of one CPU in a separate short sample, so there is no
+evidence that the host CPU was saturated. The serial worker, SQLite writes,
+queue behavior, and source burst rate still need a measured breakdown.
+
+The demo proves that the library executes accepted work, delayed submissions,
+and rejection reporting. It does not establish a throughput or reliability
+advantage over a small Go worker for the current scanner path. An interview
+description should present this as a measured integration experiment and an
+architecture correction, not as proof that Witchcraft improved BLE ingestion.
+
+### Better work boundary
+
+1. Store validated observations in bounded batches before scheduling derived
+   work. Record overflow explicitly. Preserve the observations needed for
+   signal statistics and event evidence.
+2. Persist a pending revision keyed by device and analysis window in the same
+   transaction as the new evidence. Submit that small comparable key to
+   Witchcraft after commit. Repeated requests for a key can then collapse while
+   the worker reads every committed observation.
+3. Make the worker calculate an idempotent projection and return transient
+   failures. Witchcraft can retry it; a restart dispatcher can resubmit pending
+   revisions. A stale worker must not overwrite a newer revision.
+4. Use delayed tasks for presence reevaluation. The worker rechecks persisted
+   last-seen time and receiver coverage when it fires. A timer alone must not
+   mark a device absent.
+5. Expose the actual queue gauge, task duration, failed jobs, intake overflow,
+   committed observations, and projection freshness in the UI. Compare with the
+   current path on the same recorded input before claiming a benefit.
+
+BlueZ provides a stream of updates, not a required file of completed scans.
+An import/replay command is still valuable for repeatable tests; live intake
+should use the same durable evidence contract. The detailed milestones and
+acceptance checks are in [INTELLIGENCE_PLAN.md](../INTELLIGENCE_PLAN.md).
+
+### What the initial integration does
+
 The single worker serializes calls to a stateful detector, and queue ownership
 gives submission and shutdown a clear boundary. The fork adds explicit errors
 for rejected immediate or delayed submissions. The demo exercises delayed

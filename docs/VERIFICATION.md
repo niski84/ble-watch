@@ -69,6 +69,23 @@ distinction between schedule filenames and project IDs.
 
 ## Live Bluetooth and SQLite
 
+Follow-up 2026-09-27: Bluetooth service restart initially left the adapter
+soft blocked and powered off. After unblocking it, powering it on, and
+restarting BLE Watch, a 45-second live check passed with the same scanner
+session at both ends. It measured 3,986 fresh BlueZ updates, 3,429 additional
+detector returns, an advancing SQLite observation ID, and a newest observation
+timestamp from the end of the interval. The check did not print or publish
+device identities. This establishes live intake through SQLite for that window,
+not completeness of RF capture or association with an owned beacon.
+
+A later five-second sample measured about 92 accepted observations per second
+and 56 detector returns per second; the accepted-minus-returned difference
+grew by 180. Duplicate collapsing makes that difference unsuitable as an exact
+queue-depth metric. A separate three-second process sample averaged about 7%
+of one CPU, so CPU saturation was not established. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for why per-observation tasks are being
+reconsidered.
+
 After scanner hardening, a second 45-second check required the same scanner
 start time, readiness at both ends, live-update growth, processing growth, and
 recent database advancement. It returned `blocked` / `SourceSilence`: zero live
@@ -97,9 +114,9 @@ The separate 45-second streaming check reported:
 }
 ```
 
-Continuous live reception remains unverified. Diagnose it with a controlled
-owned beacon and the receiver status before presenting a live radio demo.
-HTTP liveness alone does not establish scanner health.
+This earlier blocked result is retained as a before/after record of the
+receiver recovery. An owned-beacon check remains to establish behavior for a
+known device. HTTP liveness alone does not establish scanner health.
 
 ## Privacy review
 

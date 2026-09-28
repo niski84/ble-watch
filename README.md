@@ -15,6 +15,15 @@ is pinned in `go.mod`, so builds do not depend on a local sibling checkout.
 adds a separate observable interface and constructor to preserve the existing
 API. The contribution is open for review, not merged.
 
+The current per-observation integration is exploratory. A live sample accepted
+observations faster than the single detector worker returned. Queue collapsing
+rarely helps when observations have distinct timestamps or RSSI values, and
+detector database errors do not reach the library's retry mechanism. See the
+[architecture assessment](docs/ARCHITECTURE.md) for the measured limitation and
+the proposed keyed reconciliation design. The fork's submission-error API is a
+real, separately tested contribution; it does not by itself justify this task
+boundary for high-rate Bluetooth input.
+
 I chose it for three reasons:
 
 - It provides a worker pool and a collapsing queue for repeated work.

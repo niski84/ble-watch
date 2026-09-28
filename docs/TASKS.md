@@ -90,17 +90,20 @@ pushing from a checkout that also contains private historical branches.
 
 - **HW-01: establish continuous live reception.** Status: blocked on a controlled
   owned beacon check. Scanner worker claim released after integration `98d15f1`.
-  Scanner health/lifecycle changes and tests are complete; physical acceptance
-  is not. Original claim time: 2026-09-27T22:16:22Z. Isolated worktree branch:
+  Scanner health/lifecycle changes and tests are complete. A later 45-second
+  live check passed after the Bluetooth service and adapter were restored:
+  fresh BlueZ updates reached the detector and SQLite. A known owned device
+  has not yet been verified, so the full physical acceptance remains open.
+  Original claim time: 2026-09-27T22:16:22Z. Isolated worktree branch:
   `scanner-health-worker`. Claimed files: `internal/scanner/*.go`,
   `internal/api/server.go`, `internal/api/scanner_test.go`,
   `cmd/ble-watch/main.go`. Coordinator owns integration, docs, and deployment.
   Acceptance:
   controlled owned beacon causes new observations and database writes after
   startup; loss of receiver coverage is distinguishable from quiet devices.
-  Evidence so far: five startup observations persisted, but a separate
-  45-second streaming interval saw no new samples. Do not declare hardware
-  integration complete on the strength of HTTP health or cached device reads.
+  Earlier evidence: five startup observations persisted, while a 45-second
+  streaming interval saw no new samples. The later passing check records
+  recovery; neither result establishes owned-beacon behavior or RF completeness.
 
 - **REP-01: source and clock contracts.** Status: ready after REL-01.
   Owner: unassigned; coordinator integrates shared entrypoint changes.
