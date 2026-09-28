@@ -73,7 +73,7 @@ FROM devices ORDER BY last_seen_at DESC`)
 // ListRecognized returns only recognized devices.
 func (s *Store) ListRecognized() ([]Device, error) {
 	rows, err := s.db.Query(`
-SELECT mac,name,address_type,manufacturer,first_seen_at,last_seen_at,seen_count,last_rssi,
+SELECT mac,source,name,group_name,address_type,manufacturer,first_seen_at,last_seen_at,seen_count,last_rssi,
        COALESCE(baseline_mean,0), COALESCE(baseline_std,0), baseline_n,
        recognized, COALESCE(recognized_at,0), recognized_source, created_at, updated_at
 FROM devices WHERE recognized=1 ORDER BY last_seen_at DESC`)

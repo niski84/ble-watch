@@ -3,7 +3,7 @@ package scanner
 
 import "fmt"
 
-// Observation is a single BLE sighting (an advertisement report).
+// Observation is a cached device snapshot or an advertising-related D-Bus update.
 type Observation struct {
 	Mac          string  // upper-case "AA:BB:CC:DD:EE:FF"
 	Name         string  // device alias/name (may be empty)

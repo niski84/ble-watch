@@ -18,8 +18,8 @@ github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsRe
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
-github.com/niski84/witchcraft-go-tasks v0.0.0-20260927205511-04039794046d h1:dfGgpoIGYShtLd2daiQfc8ybF6Cf+6lXI1TthUprFrQ=
-github.com/niski84/witchcraft-go-tasks v0.0.0-20260927205511-04039794046d/go.mod h1:rleOqkNzcJDgz4uDszRIyAeHeRpZQ24IWlHTfK4Litg=
+github.com/niski84/witchcraft-go-tasks v0.0.0-20260927222217-25d350b7a5ec h1:Yc+h6DvmS6Ohnm3aHX4JFft0qnNpnL9vdXR+oq8IoA8=
+github.com/niski84/witchcraft-go-tasks v0.0.0-20260927222217-25d350b7a5ec/go.mod h1:rleOqkNzcJDgz4uDszRIyAeHeRpZQ24IWlHTfK4Litg=
 github.com/nmiyake/pkg/dirs v1.1.0 h1:qyTzK3bTqAJfekQcU6vlydM/YRxhHsv6MiRFEwTkJcw=
 github.com/nmiyake/pkg/dirs v1.1.0/go.mod h1:lGSUDZPexhLt+aWYfPHXsqnt+HFr2l/+lbEMWUhdZ/U=
 github.com/openzipkin/zipkin-go v0.4.3 h1:9EGwpqkgnwdEIJ+Od7QVSEIH+ocmm5nPat0G7sjsSdg=

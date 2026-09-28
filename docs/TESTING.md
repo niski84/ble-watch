@@ -78,6 +78,13 @@ This configuration runs only the smoke suite. Future replay and fault tests
 must be implemented before adding them to automation. The task board records
 those dependencies.
 
+Follow-up caveat: discovery now prefers the co-located public BLE spec for the
+manual project-ID route. The shared runner still has `testDir: './tests'`, so
+that absolute outside path produces no matching tests. Until that owning
+service/runner integration is corrected, use `./run-test.sh ble-watch.spec.ts`
+from test-agent for a manual run. The timed filename schedule is unaffected.
+Do not report the failing project-ID invocation as successful automation.
+
 ## Live hardware check
 
 On the machine running the receiver and its database:
@@ -86,15 +93,29 @@ On the machine running the receiver and its database:
 python3 scripts/check-live.py --seconds 45
 ```
 
-The script reads BlueZ discovery status, samples ingestion counters, and checks
-whether SQLite observation IDs advance with recent timestamps. It prints only
+The script reads scanner readiness, samples ingestion counters, and checks
+whether SQLite observation IDs advance with recent timestamps. It requires
+the same nonzero scanner start time at both boundaries and an increase in live
+updates, not just cached seeds. It prints only
 aggregate results, never device addresses or names. It uses a read-only database
 connection and does not inject synthetic observations into the live service.
 
 Exit 0 means activity was observed during the interval. Exit 2 means hardware
-activity was not established; investigate coverage or the scanner. Exit 1 means
-the check could not run. Cached devices read during startup alone do not satisfy
+activity was not established or the check could not complete; inspect the fixed
+error classification. Cached devices read during startup alone do not satisfy
 this check. Keep hardware checks separate from browser liveness tests.
+
+## Isolated demo
+
+See [DEMO.md](DEMO.md). `go test -race ./...` includes an approximately 18-second
+real-timer scenario test that asserts SQLite samples and event order. `-short`
+skips that scenario, so do not use it for full demo acceptance. The Python helper
+tests run with `python3 -m unittest discover -s scripts -p 'test_*.py'`.
+
+The browser suite now checks scanner readiness and pipeline counters too. The
+synthetic scenario test runs only with `BLE_DEMO_TEST=1`; live smoke runs skip it.
+That flag must never point at the live receiver. Both public and shared copies
+include these checks. No new scheduled radio or synthetic workload is enabled.
 
 ## Publication checks
 

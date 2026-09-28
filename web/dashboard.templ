@@ -11,6 +11,9 @@ templ Dashboard(data DashboardData) {
 			<div class="mono text-xs opacity-50">stream <span class="text-cyan-400">global</span> · { data.TotalDevices } devices</div>
 		</header>
 
+		<div id="pipeline-status" hx-get="/partials/pipeline" hx-trigger="load, every 2s" hx-swap="innerHTML" class="mb-5" aria-label="Processing status">
+			<p>Loading processing status...</p>
+		</div>
 		<div id="live-devices">
 			@DeviceGrid(data)
 		</div>
@@ -38,17 +41,19 @@ templ Dashboard(data DashboardData) {
 
 		<script>
 			(function () {
-				var last = 0;
+				var pending = false;
 				var kinds = ['device_seen','appeared','disappeared','rssi_anomaly','rogue_device','mac_rotation','device_recognized'];
 				var es = new EventSource('/api/stream');
 				function refresh() {
-					var now = Date.now();
-					if (now - last < 3000) return;
-					last = now;
-					if (window.htmx) {
-						htmx.ajax('GET', '/partials/devices', { target: '#live-devices', swap: 'innerHTML' });
-						htmx.ajax('GET', '/partials/events', { target: '#live-events', swap: 'innerHTML' });
-					}
+					if (pending) return;
+					pending = true;
+					setTimeout(function () {
+						pending = false;
+						if (window.htmx) {
+							htmx.ajax('GET', '/partials/devices', { target: '#live-devices', swap: 'innerHTML' });
+							htmx.ajax('GET', '/partials/events', { target: '#live-events', swap: 'innerHTML' });
+						}
+					}, 250);
 				}
 				kinds.forEach(function (k) { es.addEventListener(k, refresh); });
 			})();

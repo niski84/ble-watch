@@ -106,6 +106,53 @@ test('registry and event log render without requiring stored observations', asyn
     { message: 'Event log heading is visible' }).toBe(true);
 });
 
+test('scanner readiness is separate from service liveness', async ({ request }) => {
+  const response = await request.get(`${BASE}/api/scanner`, { maxRedirects: 0 });
+  expect([200, 503].includes(response.status()), 'Scanner returns an explicit health status').toBe(true);
+  const body = await response.json();
+  expect(typeof body.ready === 'boolean', 'Scanner readiness is boolean').toBe(true);
+  expect(response.status() === (body.ready ? 200 : 503), 'Status matches readiness').toBe(true);
+  expect(['unknown', 'waiting', 'active', 'silent'].includes(body.activity),
+    'Activity is explicitly classified').toBe(true);
+  for (const key of ['seeded', 'live_updates', 'device_signals']) {
+    expect(Number.isInteger(body[key]) && body[key] >= 0, 'Scanner counts are nonnegative').toBe(true);
+  }
+});
+
+test('pipeline distinguishes queue counters from stored samples', async ({ page }) => {
+  await openPage(page, `${BASE}/`);
+  for (const key of ['submitted', 'processed', 'rejected', 'stored']) {
+    await expect.poll(async () => {
+      const text = await page.locator(`[data-counter="${key}"]`).textContent().catch(() => '');
+      return /^\d+$/.test((text || '').trim());
+    }, { message: 'Processing counters render' }).toBe(true);
+  }
+});
+
+test('isolated demo explains its source and records the anomaly scenario', async ({ page, request }) => {
+  test.skip(process.env.BLE_DEMO_TEST !== '1', 'Synthetic demo only; never inspect live identities');
+  await openPage(page, `${BASE}/`);
+  await visible(page, '#demo-banner', 'Synthetic source banner is visible');
+  const received = await page.evaluate(() => new Promise<boolean>(resolve => {
+    const source = new EventSource('/api/stream');
+    const timer = setTimeout(() => { source.close(); resolve(false); }, 15_000);
+    source.addEventListener('device_seen', () => {
+      clearTimeout(timer);
+      source.close();
+      resolve(true);
+    }, { once: true });
+  }));
+  expect(received, 'Browser receives a complete observation event').toBe(true);
+  await expect.poll(async () => {
+    const response = await request.get(`${BASE}/api/events`);
+    const events = await response.json();
+    return ['rssi_anomaly', 'disappeared', 'appeared'].every(kind =>
+      events.some((event: { kind: string }) => event.kind === kind));
+  }, { timeout: 35_000, message: 'Synthetic anomaly, disappearance and appearance were persisted' }).toBe(true);
+  await openPage(page, `${BASE}/devices`);
+  await visible(page, '#demo-banner', 'Demo label persists outside dashboard');
+});
+
 test('theme follows system preference and persists an explicit toggle', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await openPage(page, `${BASE}/`);

@@ -13,6 +13,15 @@ Service liveness check.
 
 ## Devices
 
+### GET /api/scanner
+Receiver setup readiness and activity, with `Cache-Control: no-store`.
+HTTP 200 means setup is complete and BlueZ reports powered/discovering.
+Otherwise returns 503. Silence alone is not proof of a failed receiver.
+Fields include `state`, `ready`, `activity`, `seeded`, `live_updates`,
+`device_signals`, `started_at`, and `last_live_update`. Seeds never count as
+live activity. Live updates are advertising-related D-Bus updates, not proven
+RF packets. The demo returns 503 with `disabled_for_demo` by design.
+
 ### GET /api/ingestion
 Process-local counters: `submitted`, `rejected`, and `processed`. These counters
 reset on restart. Processed means the detector returned, not that every database
@@ -64,6 +73,11 @@ HTML fragment (stats + device grid) for SSE-triggered refresh.
 
 ### GET /partials/events
 HTML fragment (event feed) for SSE-triggered refresh.
+
+### GET /partials/pipeline
+HTML fragment of source status, process-local queue counters, and an independent
+SQLite observation count. Returns 503 if that database read fails. Polled every
+two seconds on the dashboard; no task-health or durability guarantee is implied.
 
 ## Pages
 

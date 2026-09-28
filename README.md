@@ -11,6 +11,18 @@ can tell when cancellation or shutdown prevents work from being accepted.
 
 The [fork](https://github.com/niski84/witchcraft-go-tasks/tree/submission-errors)
 is pinned in `go.mod`, so builds do not depend on a local sibling checkout.
+[Upstream PR #142](https://github.com/palantir/witchcraft-go-tasks/pull/142)
+adds a separate observable interface and constructor to preserve the existing
+API. The contribution is open for review, not merged.
+
+The current per-observation integration is exploratory. A live sample accepted
+observations faster than the single detector worker returned. Queue collapsing
+rarely helps when observations have distinct timestamps or RSSI values, and
+detector database errors do not reach the library's retry mechanism. See the
+[architecture assessment](docs/ARCHITECTURE.md) for the measured limitation and
+the proposed keyed reconciliation design. The fork's submission-error API is a
+real, separately tested contribution; it does not by itself justify this task
+boundary for high-rate Bluetooth input.
 
 I chose it for three reasons:
 
@@ -35,10 +47,33 @@ This is an initial integration. One worker limits concurrency, but queue storage
 is not bounded. The detector logs database errors rather than returning them to
 the task library, so those errors are not retried today. The processing counter
 does not certify a database commit. Task health is not yet exposed through the
-health endpoint. Delayed submission is implemented in the fork but is not yet
-used by BLE Watch.
+health endpoint. The isolated demo exercises delayed submission through the
+same processor; live Bluetooth observations are submitted immediately.
 
 ## Build and run
+
+### Try the isolated demo
+
+```sh
+go run ./cmd/ble-demo
+```
+
+Open the loopback URL printed in the terminal. The **Skitchcraft / BLE Watch**
+demo runs a synthetic sensor through the same Witchcraft processor, detector,
+SQLite store, and dashboard used by the live service. It demonstrates a signal
+baseline, delayed signal surge, disappearance, and return in about 24 seconds.
+Baseline readings then continue until stopped. No Bluetooth adapter is needed.
+
+Every launch creates a new temporary database. The command ignores live
+environment settings, disables webhooks, and binds only to loopback. It retains
+its synthetic database after exit for inspection. See [the demo guide](docs/DEMO.md)
+for the walkthrough and [the architecture notes](docs/ARCHITECTURE.md) for why
+Smash Deck and Witchcraft serve different purposes.
+
+Skitchcraft is a working demo label, not a rename of Palantir's library or a
+claim of affiliation. The repository remains BLE Watch.
+
+### Live receiver
 
 Use Go 1.27 or later. Live discovery requires Linux, BlueZ, a Bluetooth adapter,
 and permission to use the system D-Bus Bluetooth service.

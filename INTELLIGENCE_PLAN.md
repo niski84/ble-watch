@@ -53,8 +53,26 @@ Several earlier descriptions overstated the integration:
   Witchcraft, and `processed` does not prove successful persistence.
 - Submitting successfully means accepted into memory, not durably committed.
 - Cancellation does not provide application-level draining or crash recovery.
-- Delayed submission exists in the fork but BLE Watch does not currently use it.
+- The isolated synthetic demo exercises delayed submission. The live scanner
+  still submits each observation immediately.
 - The task health source is not connected to the application's health response.
+
+The live receiver check passed after the Bluetooth service and adapter were
+restored: fresh updates reached the detector and SQLite. A later five-second
+sample measured about 92 accepted observations per second versus 56 detector
+returns per second, while the process used about 7% of one CPU in a separate
+short sample. The accepted-minus-returned difference is not an exact queue
+length because identical items can collapse. This evidence supports measuring
+serial processing and persistence costs; it does not establish CPU saturation
+or a benefit from using Witchcraft for each raw update. The current queue is
+in-memory and unbounded.
+
+The decision for the next implementation is to keep the raw source as evidence
+intake and use Witchcraft for keyed, retryable derived work after commit. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the rationale. An observability
+UI should expose actual work-state and library metrics only after those
+contracts exist; do not present the accepted-minus-returned difference as
+queue depth.
 
 ## Scope and useful household questions
 

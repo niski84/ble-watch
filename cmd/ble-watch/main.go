@@ -47,7 +47,9 @@ func main() {
 	processor := ingest.New(ctx, det)
 
 	sc := scanner.New(cfg.Adapter)
+	scannerDone := make(chan struct{})
 	go func() {
+		defer close(scannerDone)
 		if err := sc.Run(ctx, obsCh); err != nil {
 			log.Printf("scanner: %v", err)
 		}
@@ -83,7 +85,7 @@ func main() {
 		}
 	}()
 
-	handler := api.NewServer(cfg, st, hub, det, processor)
+	handler := api.NewServer(cfg, st, hub, det, processor, sc)
 
 	addr := ":" + cfg.Port
 	log.Printf("[ble-watch] listening on http://localhost:%s (adapter %s)", cfg.Port, cfg.Adapter)
@@ -97,9 +99,18 @@ func main() {
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
+	select {
+	case <-sig:
+	case <-ctx.Done():
+	}
+	signal.Stop(sig)
 	log.Println("[ble-watch] shutting down")
 	cancel()
+	select {
+	case <-scannerDone:
+	case <-time.After(5 * time.Second):
+		log.Println("scanner shutdown timed out")
+	}
 }
 
 func purge(st *store.Store, retentionDays int) {

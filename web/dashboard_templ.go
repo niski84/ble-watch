@@ -55,7 +55,7 @@ func Dashboard(data DashboardData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " devices</div></header><div id=\"live-devices\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " devices</div></header><div id=\"pipeline-status\" hx-get=\"/partials/pipeline\" hx-trigger=\"load, every 2s\" hx-swap=\"innerHTML\" class=\"mb-5\" aria-label=\"Processing status\"><p>Loading processing status...</p></div><div id=\"live-devices\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -71,7 +71,7 @@ func Dashboard(data DashboardData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></section><section class=\"bw-panel p-5\"><h2 class=\"font-semibold mb-3\">Detection modes</h2><ul class=\"space-y-3 text-sm opacity-80\"><li class=\"flex gap-3\"><span>RSSI</span><span><b>Signal surge:</b> a recognized device's observed signal is far above its baseline.</span></li><li class=\"flex gap-3\"><span>!</span><span><b>Name match:</b> an unknown address uses a recognized device's name. This does not establish spoofing.</span></li><li class=\"flex gap-3\"><span>R</span><span><b>Address churn:</b> a burst of distinct random addresses. This does not establish a threat.</span></li><li class=\"flex gap-3\"><span>*</span><span><b>Auto-learn:</b> recurring devices are marked recognized. Recognition is not authentication.</span></li></ul></section></div><script>\n\t\t\t(function () {\n\t\t\t\tvar last = 0;\n\t\t\t\tvar kinds = ['device_seen','appeared','disappeared','rssi_anomaly','rogue_device','mac_rotation','device_recognized'];\n\t\t\t\tvar es = new EventSource('/api/stream');\n\t\t\t\tfunction refresh() {\n\t\t\t\t\tvar now = Date.now();\n\t\t\t\t\tif (now - last < 3000) return;\n\t\t\t\t\tlast = now;\n\t\t\t\t\tif (window.htmx) {\n\t\t\t\t\t\thtmx.ajax('GET', '/partials/devices', { target: '#live-devices', swap: 'innerHTML' });\n\t\t\t\t\t\thtmx.ajax('GET', '/partials/events', { target: '#live-events', swap: 'innerHTML' });\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tkinds.forEach(function (k) { es.addEventListener(k, refresh); });\n\t\t\t})();\n\t\t\twindow.addEventListener('DOMContentLoaded', function () {\n\t\t\t\tvar present = document.querySelector('[data-filter=\"present\"]');\n\t\t\t\tif (present) filterDevices(present);\n\t\t\t});\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></section><section class=\"bw-panel p-5\"><h2 class=\"font-semibold mb-3\">Detection modes</h2><ul class=\"space-y-3 text-sm opacity-80\"><li class=\"flex gap-3\"><span>RSSI</span><span><b>Signal surge:</b> a recognized device's observed signal is far above its baseline.</span></li><li class=\"flex gap-3\"><span>!</span><span><b>Name match:</b> an unknown address uses a recognized device's name. This does not establish spoofing.</span></li><li class=\"flex gap-3\"><span>R</span><span><b>Address churn:</b> a burst of distinct random addresses. This does not establish a threat.</span></li><li class=\"flex gap-3\"><span>*</span><span><b>Auto-learn:</b> recurring devices are marked recognized. Recognition is not authentication.</span></li></ul></section></div><script>\n\t\t\t(function () {\n\t\t\t\tvar pending = false;\n\t\t\t\tvar kinds = ['device_seen','appeared','disappeared','rssi_anomaly','rogue_device','mac_rotation','device_recognized'];\n\t\t\t\tvar es = new EventSource('/api/stream');\n\t\t\t\tfunction refresh() {\n\t\t\t\t\tif (pending) return;\n\t\t\t\t\tpending = true;\n\t\t\t\t\tsetTimeout(function () {\n\t\t\t\t\t\tpending = false;\n\t\t\t\t\t\tif (window.htmx) {\n\t\t\t\t\t\t\thtmx.ajax('GET', '/partials/devices', { target: '#live-devices', swap: 'innerHTML' });\n\t\t\t\t\t\t\thtmx.ajax('GET', '/partials/events', { target: '#live-events', swap: 'innerHTML' });\n\t\t\t\t\t\t}\n\t\t\t\t\t}, 250);\n\t\t\t\t}\n\t\t\t\tkinds.forEach(function (k) { es.addEventListener(k, refresh); });\n\t\t\t})();\n\t\t\twindow.addEventListener('DOMContentLoaded', function () {\n\t\t\t\tvar present = document.querySelector('[data-filter=\"present\"]');\n\t\t\t\tif (present) filterDevices(present);\n\t\t\t});\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -114,7 +114,7 @@ func DeviceGrid(data DashboardData) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(data.TotalDevices)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 67, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 72, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -127,7 +127,7 @@ func DeviceGrid(data DashboardData) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(data.PresentCount)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 71, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 76, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -140,7 +140,7 @@ func DeviceGrid(data DashboardData) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(data.RecognizedCount)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 75, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 80, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -158,7 +158,7 @@ func DeviceGrid(data DashboardData) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue("group:" + group)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 85, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 90, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -171,7 +171,7 @@ func DeviceGrid(data DashboardData) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(group)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 85, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/dashboard.templ`, Line: 90, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

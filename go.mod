@@ -10,7 +10,7 @@ require (
 	modernc.org/sqlite v1.56.0
 )
 
-replace github.com/palantir/witchcraft-go-tasks => github.com/niski84/witchcraft-go-tasks v0.0.0-20260927205511-04039794046d
+replace github.com/palantir/witchcraft-go-tasks => github.com/niski84/witchcraft-go-tasks v0.0.0-20260927222217-25d350b7a5ec
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
